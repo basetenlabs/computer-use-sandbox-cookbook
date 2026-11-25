@@ -19,8 +19,8 @@ You need Python 3.11 or later, [uv](https://docs.astral.sh/uv/), and a
 Baseten API key with access to Sandboxes and Model APIs.
 
 ```sh
-git clone https://github.com/basetenlabs/computer-use-sandbox
-cd computer-use-sandbox
+git clone https://github.com/basetenlabs/computer-use-sandbox-cookbook
+cd computer-use-sandbox-cookbook
 uv sync
 export BASETEN_API_KEY=...
 uv run computer-use-image    # once per team, about 2 minutes
