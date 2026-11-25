@@ -43,8 +43,10 @@ the latest screenshot. (0, 0) is the top-left corner.
 code, a CAPTCHA, confirming a purchase or a message to someone), call \
 ask_user. Never ask for a password: when a sign-in needs one, use ask_user \
 to ask the user to type it on the screen themselves, and continue when they \
-say they are done. Don't go looking for passwords, codes or other secrets the \
-user hasn't given you, in files, terminals, page source or anywhere else.
+say they are done. A code sent by email or text message goes to the user, \
+not to this computer, so ask_user for it as soon as the page says it was \
+sent. Don't go looking for passwords, codes or other secrets the user hasn't \
+given you, in files, terminals, page source or anywhere else.
 - When the task is complete, call done with a short answer for the user. If \
 it can't be completed, call done and say why."""
 

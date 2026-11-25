@@ -6,63 +6,12 @@ and drives a real Google Chrome. Your user watches live from their own browser
 and can take over at any point, for example to sign in. The computer keeps its
 windows, files and logins between tasks.
 
-![The agent finds the year on Wikipedia with its browser tools, then writes it to a file in a text editor with the mouse and keyboard](media/research.gif)
+![Four desktops, one per user, each running its own task at the same time: one finds the latest Python release on python.org, one finds Golden Gate Park on OpenStreetMap, one reads the star count of a GitHub repository, and one creates a folder named Invoices on the desktop with the mouse and keyboard.](media/four-desktops.gif)
 
-This repo is a small, tested Python reference you can copy into your backend:
+*Four users, four computers, four tasks at the same time. Each desktop is its own Baseten Sandbox.*
 
-* `computer_use/desktop.py`: `Desktop`, one user's computer (one Baseten
-  Sandbox). Screenshots, mouse, keyboard, the browser through Playwright, and a
-  live view link.
-* `computer_use/agent.py`: `run_task`, the agent loop. Works with any
-  OpenAI-compatible vision model and defaults to Baseten Model APIs.
-* `computer_use/image.py`: the desktop image, and the `computer-use-image`
-  command that builds it once for your team.
-* `tests/`: end-to-end tests against real sandboxes and real models.
-
-## How it works
-
-```
- your backend                                Baseten Sandbox, one per user
- ┌─────────────────────────┐                ┌───────────────────────────────────┐
- │ run_task(desktop, task) │── /port/8000 ─▶│ computer server: screen, mouse,   │
- │   vision model          │                │ keyboard                          │
- │   Playwright            │── /port/9223 ─▶│ Google Chrome DevTools            │
- └─────────────────────────┘                │                                   │
- your user's browser                        │ XFCE desktop, 1024x768            │
- ┌─────────────────────────┐                │                                   │
- │ live view (noVNC)       │── preview ────▶│ VNC on port 6901                  │
- └─────────────────────────┘                └───────────────────────────────────┘
-```
-
-The loop runs in your backend. Each turn it sends the model the task, the
-conversation so far and a fresh screenshot. The model answers with tool calls,
-the loop runs them on the desktop, and it repeats until the model calls `done`.
-
-| Tool | What the model can do with it |
-| --- | --- |
-| `computer` | Click, double-click, right-click, move, drag, type, press keys (`ctrl+l`), scroll and wait, by pixel coordinates on the screenshot. |
-| `browser_open`, `browser_snapshot`, `browser_click`, `browser_type`, `browser_select`, `browser_read` | Act on web pages through element references from the page's accessibility tree. Faster and more reliable than pixels. |
-| `ask_user` | Ask the user for something only they can give: a sign-in, a one-time code, approval for a purchase. |
-| `done` | Finish with an answer for the user. |
-
-The browser tools and the mouse drive the same Chrome window your user sees,
-so the agent can mix them, and your user can step in halfway through.
-
-The sandbox runs `computer-use-desktop`, an image you build once with
-`uv run computer-use-image` (139 seconds the first time, seconds after). It
-starts from the same desktop as Baseten's built-in `baseten/cua-xfce:latest`
-image (Ubuntu 22.04 with an XFCE desktop, VNC, noVNC and a computer server) and
-adds Google Chrome, the Mousepad text editor, `xdotool`, and Chrome policies
-that turn off sign-in, sync, password saving and other prompts that would
-cover the page. It also takes away the desktop user's root access and stops
-web pages from reaching the sandbox's own services (see Security).
-`Desktop.open` starts Chrome with DevTools on.
-
-The built-in image works too (`--image baseten/cua-xfce:latest`): `Desktop.open`
-then downloads Chrome on the desktop's first start, and the desktop has no
-application menu or icons, which makes desktop apps harder for the model to
-find. It also keeps the base image's defaults that Security describes, so use
-it only to try things out.
+**Using a coding agent?** Point it at [AGENTS.md](AGENTS.md): setup, a `--json`
+mode with exit codes, and the checks to run.
 
 ## Quickstart
 
@@ -96,8 +45,73 @@ The first run creates your desktop, which takes about a minute. Running again
 with the same `--desktop` name reconnects in about 2 seconds.
 
 Other options: `--model`, `--no-browser-tools` (screen, mouse and keyboard
-only), `--max-turns`, `--image`, `--human-pace` (see below) and `--delete`
-(delete the desktop at the end, or right away when there is no task).
+only), `--max-turns`, `--image`, `--human-pace` (see below), `--delete`
+(delete the desktop at the end, or right away when there is no task) and
+`--json` (only a JSON result on stdout, for scripts and coding agents; the exit
+code is 0 when the agent ended with an answer, 1 when it ran out of turns).
+
+## What's in this repo
+
+A small, tested Python reference you can copy into your backend:
+
+* `computer_use/desktop.py`: `Desktop`, one user's computer (one Baseten
+  Sandbox). Screenshots, mouse, keyboard, the browser through Playwright, and a
+  live view link.
+* `computer_use/agent.py`: `run_task`, the agent loop. Works with any
+  OpenAI-compatible vision model and defaults to Baseten Model APIs.
+* `computer_use/image.py`: the desktop image, and the `computer-use-image`
+  command that builds it once for your team.
+* `tests/`: end-to-end tests against real sandboxes and real models.
+* `AGENTS.md`: instructions for coding agents.
+
+## How it works
+
+```mermaid
+flowchart TB
+    model["Vision model on Baseten Model APIs"]
+    loop["run_task: the agent loop<br/>(your backend)"]
+    viewer["Your user's browser"]
+    subgraph sandbox["Baseten Sandbox, one per user"]
+        direction LR
+        server["Computer server:<br/>screen, mouse, keyboard"]
+        chrome["Google Chrome<br/>DevTools"]
+        vnc["XFCE desktop<br/>over VNC, 1024x768"]
+    end
+    model <-- "screenshot in, tool calls out" --> loop
+    loop -- "/port/8000" --> server
+    loop -- "/port/9223" --> chrome
+    viewer -- "live view link" --> vnc
+```
+
+The loop runs in your backend. Each turn it sends the model the task, the
+conversation so far and a fresh screenshot. The model answers with tool calls,
+the loop runs them on the desktop, and it repeats until the model calls `done`.
+
+| Tool | What the model can do with it |
+| --- | --- |
+| `computer` | Click, double-click, right-click, move, drag, type, press keys (`ctrl+l`), scroll and wait, by pixel coordinates on the screenshot. |
+| `browser_open`, `browser_snapshot`, `browser_click`, `browser_type`, `browser_select`, `browser_read` | Act on web pages through element references from the page's accessibility tree. Faster and more reliable than pixels. |
+| `ask_user` | Ask the user for something only they can give: a sign-in, a one-time code, approval for a purchase. |
+| `done` | Finish with an answer for the user. |
+
+The browser tools and the mouse drive the same Chrome window your user sees,
+so the agent can mix them, and your user can step in halfway through.
+
+The sandbox runs `computer-use-desktop`, an image you build once with
+`uv run computer-use-image` (139 seconds the first time, seconds after). It
+starts from the same desktop as Baseten's built-in `baseten/cua-xfce:latest`
+image (Ubuntu 22.04 with an XFCE desktop, VNC, noVNC and a computer server) and
+adds Google Chrome, the Mousepad text editor, `xdotool`, and Chrome policies
+that turn off sign-in, sync, password saving and other prompts that would
+cover the page. It also takes away the desktop user's root access and stops
+web pages from reaching the sandbox's own services (see Security).
+`Desktop.open` starts Chrome with DevTools on.
+
+The built-in image works too (`--image baseten/cua-xfce:latest`): `Desktop.open`
+then downloads Chrome on the desktop's first start, and the desktop has no
+application menu or icons, which makes desktop apps harder for the model to
+find. It also keeps the base image's defaults that Security describes, so use
+it only to try things out.
 
 ## Use it from your backend
 
@@ -253,7 +267,7 @@ The tests serve a small website inside the sandbox (`tests/site/server.py`)
 and check each outcome in the sandbox itself, not the model's answer.
 
 Results on new desktops, November 25, 2026, on the `computer-use-desktop` image:
-18 of 18 passed with both models below, in 188 seconds. The agent timings in
+21 of 21 passed with both models below, in 199 seconds. The agent timings in
 the table are from November 24.
 
 | Agent test (checked in the sandbox) | Kimi K3.1 Pro | GLM 5.3 Flash |
@@ -269,7 +283,8 @@ to the front when covered or minimized, that key combinations reach the
 browser, that the live view streams, that every route refuses requests without
 a token, that the desktop user can't become root, that web pages can't reach
 the computer server, and that a second connection sees the same browser
-session.
+session. The command tests check the `computer-use` usage errors and a
+`--json` run with no terminal attached.
 
 ## What we learned building it
 
@@ -285,6 +300,9 @@ session.
   window to the front first.
 * **Agents use what they find.** Given a terminal, an agent went looking for
   the one-time code in the website's source instead of asking. See Security.
+  With the source locked away, another model still opened a terminal and
+  probed local ports and files for the emailed code, until the system prompt
+  said plainly that such a code goes to the user, not to the computer.
 * **Give the model a desktop a person would recognize.** The built-in image has
   no application menu or icons, so "open the text editor" had nowhere to go.
   The custom image keeps them and adds an editor.
@@ -302,3 +320,8 @@ session.
 * The screen is 1024x768, the image's default.
 * The desktop is Linux, so apps that only run on Windows or macOS won't run.
 * The live view has no audio.
+
+## Learn more
+
+* [Baseten Sandboxes docs](https://docs.baseten.co/sandboxes/overview)
+* [Baseten Model APIs](https://docs.baseten.co/inference/model-apis/overview)

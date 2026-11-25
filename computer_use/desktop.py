@@ -267,8 +267,13 @@ class Desktop:
                     expiration_policies=[SandboxExpirationPolicyIdle(after=idle_timeout)]
                 ),
             )
-        except BaseException:
+        except BaseException as e:
             client.close()
+            if image == IMAGE and "not found" in str(e).lower():
+                raise DesktopError(
+                    f"The image {IMAGE} isn't in your team's images yet. "
+                    "Build it once with: uv run computer-use-image (about 2 minutes)"
+                ) from e
             raise
         desktop = cls(client, sandbox, api_key, human_pace=human_pace)
         try:
